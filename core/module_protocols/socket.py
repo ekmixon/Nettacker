@@ -20,34 +20,29 @@ def response_conditions_matched(sub_step, response):
     condition_results = {}
     if sub_step['method'] == 'tcp_connect_only':
         return response
-    if sub_step['method'] == 'tcp_connect_send_and_receive':
-        if response:
-            received_content = response['response']
-            for condition in conditions:
-                regex = re.findall(re.compile(conditions[condition]['regex']), received_content)
-                reverse = conditions[condition]['reverse']
-                condition_results[condition] = reverse_and_regex_condition(regex, reverse)
-            for condition in copy.deepcopy(condition_results):
-                if not condition_results[condition]:
-                    del condition_results[condition]
-            if 'open_port' in condition_results and len(condition_results) > 1:
-                del condition_results['open_port']
-                del conditions['open_port']
-            if condition_type == 'and':
-                return condition_results if len(condition_results) == len(conditions) else []
-            if condition_type == 'or':
-                return condition_results if condition_results else []
-            return []
-    if sub_step['method'] == 'socket_icmp':
-        return response
-    return []
+    if sub_step['method'] == 'tcp_connect_send_and_receive' and response:
+        received_content = response['response']
+        for condition in conditions:
+            regex = re.findall(re.compile(conditions[condition]['regex']), received_content)
+            reverse = conditions[condition]['reverse']
+            condition_results[condition] = reverse_and_regex_condition(regex, reverse)
+        for condition in copy.deepcopy(condition_results):
+            if not condition_results[condition]:
+                del condition_results[condition]
+        if 'open_port' in condition_results and len(condition_results) > 1:
+            del condition_results['open_port']
+            del conditions['open_port']
+        if condition_type == 'and':
+            return condition_results if len(condition_results) == len(conditions) else []
+        return condition_results or [] if condition_type == 'or' else []
+    return response if sub_step['method'] == 'socket_icmp' else []
 
 
 class NettackerSocket:
-    def tcp_connect_only(host, ports, timeout):
+    def tcp_connect_only(self, ports, timeout):
         socket_connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         socket_connection.settimeout(timeout)
-        socket_connection.connect((host, int(ports)))
+        socket_connection.connect((self, int(ports)))
         peer_name = socket_connection.getpeername()
         socket_connection.close()
         return {
@@ -55,10 +50,10 @@ class NettackerSocket:
             "service": socket.getservbyport(int(ports))
         }
 
-    def tcp_connect_send_and_receive(host, ports, timeout):
+    def tcp_connect_send_and_receive(self, ports, timeout):
         socket_connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         socket_connection.settimeout(timeout)
-        socket_connection.connect((host, int(ports)))
+        socket_connection.connect((self, int(ports)))
         peer_name = socket_connection.getpeername()
         try:
             socket_connection.send(b"ABC\x00\r\n" * 10)
@@ -76,7 +71,7 @@ class NettackerSocket:
             "response": response.decode(errors='ignore')
         }
 
-    def socket_icmp(host, timeout):
+    def socket_icmp(self, timeout):
         """
             A pure python ping implementation using raw socket.
             Note that ICMP messages can only be sent from processes running as root.
@@ -183,7 +178,7 @@ class NettackerSocket:
         header = struct.pack(
             "bbHHh", icmp_echo_request, 0, socket.htons(dummy_checksum), random_integer, 1
         )
-        socket_connection.sendto(header + data, (socket.gethostbyname(host), 1))  # Don't know about the 1
+        socket_connection.sendto(header + data, (socket.gethostbyname(self), 1))
 
         while True:
             started_select = time.time()
@@ -207,29 +202,15 @@ class NettackerSocket:
             if timeout <= 0:
                 break
         socket_connection.close()
-        return {
-            "host": host,
-            "response_time": delay
-        }
+        return {"host": self, "response_time": delay}
 
 
 class Engine:
-    def run(
-            sub_step,
-            module_name,
-            target,
-            scan_unique_id,
-            options,
-            process_number,
-            module_thread_number,
-            total_module_thread_number,
-            request_number_counter,
-            total_number_of_requests
-    ):
-        backup_method = copy.deepcopy(sub_step['method'])
-        backup_response = copy.deepcopy(sub_step['response'])
-        del sub_step['method']
-        del sub_step['response']
+    def run(self, module_name, target, scan_unique_id, options, process_number, module_thread_number, total_module_thread_number, request_number_counter, total_number_of_requests):
+        backup_method = copy.deepcopy(self['method'])
+        backup_response = copy.deepcopy(self['response'])
+        del self['method']
+        del self['response']
         if 'dependent_on_temp_event' in backup_response:
             temp_event = get_dependent_results_from_database(
                 target,
@@ -237,22 +218,22 @@ class Engine:
                 scan_unique_id,
                 backup_response['dependent_on_temp_event']
             )
-            sub_step = replace_dependent_values(
-                sub_step,
-                temp_event
-            )
+            self = replace_dependent_values(self, temp_event)
         action = getattr(NettackerSocket, backup_method, None)
         for _ in range(options['retries']):
             try:
-                response = action(**sub_step)
+                response = action(**self)
                 break
             except Exception:
                 response = []
-        sub_step['method'] = backup_method
-        sub_step['response'] = backup_response
-        sub_step['response']['conditions_results'] = response_conditions_matched(sub_step, response)
+        self['method'] = backup_method
+        self['response'] = backup_response
+        self['response']['conditions_results'] = response_conditions_matched(
+            self, response
+        )
+
         return process_conditions(
-            sub_step,
+            self,
             module_name,
             target,
             scan_unique_id,
@@ -262,5 +243,5 @@ class Engine:
             module_thread_number,
             total_module_thread_number,
             request_number_counter,
-            total_number_of_requests
+            total_number_of_requests,
         )

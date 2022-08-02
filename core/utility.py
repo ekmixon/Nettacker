@@ -134,17 +134,15 @@ def process_conditions(
 
 def filter_large_content(content, filter_rate=150):
     from core.alert import messages
-    if len(content) <= filter_rate:
-        return content
-    else:
+    if len(content) > filter_rate:
         filter_rate -= 1
         filter_index = filter_rate
-        for char in content[filter_rate:]:
+        for char in content[filter_index:]:
             if char == ' ':
-                return content[0:filter_index] + messages('filtered_content')
+                return content[:filter_index] + messages('filtered_content')
             else:
                 filter_index += 1
-        return content
+    return content
 
 
 def get_dependent_results_from_database(target, module_name, scan_unique_id, event_name):
@@ -164,24 +162,24 @@ def find_and_replace_dependent_values(sub_step, dependent_on_temp_event):
                 sub_step[key] = find_and_replace_dependent_values(
                     copy.deepcopy(sub_step[key]), dependent_on_temp_event
                 )
-            else:
-                if type(sub_step[key]) == str:
-                    if 'dependent_on_temp_event' in sub_step[key]:
-                        globals().update(locals())
-                        exec('sub_step[key] = {sub_step}'.format(sub_step=sub_step[key]), globals(), {})
+            elif (
+                type(sub_step[key]) == str
+                and 'dependent_on_temp_event' in sub_step[key]
+            ):
+                globals().update(locals())
+                exec('sub_step[key] = {sub_step}'.format(sub_step=sub_step[key]), globals(), {})
     if type(sub_step) == list:
-        value_index = 0
-        for value in copy.deepcopy(sub_step):
+        for value_index, value in enumerate(copy.deepcopy(sub_step)):
             if type(sub_step[value_index]) not in [str, float, int, bytes]:
                 sub_step[key] = find_and_replace_dependent_values(
                     copy.deepcopy(sub_step[value_index]), dependent_on_temp_event
                 )
-            else:
-                if type(sub_step[value_index]) == str:
-                    if 'dependent_on_temp_event' in sub_step[value_index]:
-                        globals().update(locals())
-                        exec('sub_step[value_index] = {sub_step}'.format(sub_step=sub_step[value_index]), globals(), {})
-            value_index += 1
+            elif (
+                type(sub_step[value_index]) == str
+                and 'dependent_on_temp_event' in sub_step[value_index]
+            ):
+                globals().update(locals())
+                exec('sub_step[value_index] = {sub_step}'.format(sub_step=sub_step[value_index]), globals(), {})
     return sub_step
 
 
@@ -191,18 +189,13 @@ def replace_dependent_values(sub_step, dependent_on_temp_event):
 
 def reverse_and_regex_condition(regex, reverse):
     if regex:
-        if reverse:
-            return []
-        return list(set(regex))
-    else:
-        if reverse:
-            return True
-        return []
+        return [] if reverse else list(set(regex))
+    return True if reverse else []
 
 
 def select_maximum_cpu_core(mode):
     if mode == 'maximum':
-        return int(multiprocessing.cpu_count() - 1) if int(multiprocessing.cpu_count() - 1) >= 1 else 1
+        return max(int(multiprocessing.cpu_count() - 1), 1)
     elif mode == 'high':
         return int(multiprocessing.cpu_count() / 2) if int(multiprocessing.cpu_count() - 1) >= 1 else 1
     elif mode == 'normal':
@@ -298,18 +291,19 @@ def generate_new_sub_steps(sub_steps, data_matrix, arrays):
     original_sub_steps = copy.deepcopy(sub_steps)
     steps_array = []
     for array in data_matrix:
-        array_name_position = 0
-        for array_name in arrays:
+        for array_name_position, array_name in enumerate(arrays):
             for sub_step in sub_steps:
                 exec(
                     "original_sub_steps{key_name} = {matrix_value}".format(
                         key_name=re_address_repeaters_key_name(array_name),
-                        matrix_value='"' + str(array[array_name_position]) + '"' if type(
-                            array[array_name_position]) == int or type(array[array_name_position]) == str else array[
-                            array_name_position]
+                        matrix_value='"'
+                        + str(array[array_name_position])
+                        + '"'
+                        if type(array[array_name_position]) in [int, str]
+                        else array[array_name_position],
                     )
                 )
-            array_name_position += 1
+
         steps_array.append(copy.deepcopy(original_sub_steps))
     return steps_array
 
@@ -320,7 +314,7 @@ def find_repeaters(sub_content, root, arrays):
         original_root = root
         for key in sub_content:
             root = original_root
-            root += key + '/'
+            root += f'{key}/'
             temprory_content[key], _root, arrays = find_repeaters(sub_content[key], root, arrays)
         sub_content = copy.deepcopy(temprory_content)
         root = original_root
@@ -339,10 +333,8 @@ def find_and_replace_configuration_keys(module_content, module_inputs):
             elif type(module_content[key]) in [dict, list]:
                 module_content[key] = find_and_replace_configuration_keys(module_content[key], module_inputs)
     elif type(module_content) == list:
-        array_index = 0
-        for key in copy.deepcopy(module_content):
+        for array_index, key in enumerate(copy.deepcopy(module_content)):
             module_content[array_index] = find_and_replace_configuration_keys(key, module_inputs)
-            array_index += 1
     else:
         return module_content
     return module_content
@@ -355,14 +347,10 @@ class value_to_class:
 
 def class_to_value(arrays):
     original_arrays = copy.deepcopy(arrays)
-    array_index = 0
-    for array in arrays:
-        value_index = 0
-        for value in array:
+    for array_index, array in enumerate(arrays):
+        for value_index, value in enumerate(array):
             if type(value) == value_to_class:
                 original_arrays[array_index][value_index] = value.value
-            value_index += 1
-        array_index += 1
     return original_arrays
 
 
@@ -423,11 +411,11 @@ def nettacker_fuzzer_repeater_perform(arrays):
             suffix = arrays[array_name]['nettacker_fuzzer']['suffix']
             processed_array = []
             for sub_data in data_matrix:
-                formatted_data = {}
-                index_input = 0
-                for value in sub_data:
-                    formatted_data[list(data.keys())[index_input]] = value
-                    index_input += 1
+                formatted_data = {
+                    list(data.keys())[index_input]: value
+                    for index_input, value in enumerate(sub_data)
+                }
+
                 interceptors_function = ''
                 interceptors_function_processed = ''
                 if interceptors:
@@ -456,8 +444,9 @@ def expand_module_steps(content):
     original_content = copy.deepcopy(content)
     for protocol_lib in content:
         for sub_step in content[content.index(protocol_lib)]['steps']:
-            arrays = nettacker_fuzzer_repeater_perform(find_repeaters(sub_step, '', {}))
-            if arrays:
+            if arrays := nettacker_fuzzer_repeater_perform(
+                find_repeaters(sub_step, '', {})
+            ):
                 original_content[content.index(protocol_lib)]['steps'][
                     original_content[content.index(protocol_lib)]['steps'].index(sub_step)
                 ] = generate_new_sub_steps(sub_step, class_to_value(arrays_to_matrix(arrays)), arrays)
@@ -476,9 +465,7 @@ def sort_dictonary(dictionary):
     etc_flag = '...' in dictionary
     if etc_flag:
         del dictionary['...']
-    sorted_dictionary = {}
-    for key in sorted(dictionary):
-        sorted_dictionary[key] = dictionary[key]
+    sorted_dictionary = {key: dictionary[key] for key in sorted(dictionary)}
     if etc_flag:
         sorted_dictionary['...'] = {}
     return sorted_dictionary

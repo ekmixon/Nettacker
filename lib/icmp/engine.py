@@ -113,7 +113,7 @@ def checksum_py3(source_string):
         thisVal = source_string[count + 1] * 256 + source_string[count]
         sum = sum + thisVal
         sum = sum & 0xffffffff  # Necessary?
-        count = count + 2
+        count += 2
 
     if countTo < len(source_string):
         sum = sum + source_string[len(source_string) - 1]

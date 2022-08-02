@@ -67,11 +67,13 @@ def start_scan_processes(options):
     # optimize CPU usage
     info(messages("regrouping_targets"))
     options.targets = [
-        targets.tolist() for targets in numpy.array_split(
+        targets.tolist()
+        for targets in numpy.array_split(
             expand_targets(options, scan_unique_id),
-            options.set_hardware_usage if options.set_hardware_usage >= len(options.targets) else len(options.targets)
+            max(options.set_hardware_usage, len(options.targets)),
         )
     ]
+
     info(messages("removing_old_db_records"))
     from database.db import remove_old_logs
     for target_group in options.targets:
@@ -88,9 +90,7 @@ def start_scan_processes(options):
         options.targets.remove([])
     active_processes = []
     info(messages("start_multi_process").format(len(options.targets)))
-    process_number = 0
-    for targets in options.targets:
-        process_number += 1
+    for process_number, targets in enumerate(options.targets, start=1):
         process = multiprocessing.Process(
             target=parallel_scan_process,
             args=(options, targets, scan_unique_id, process_number,)

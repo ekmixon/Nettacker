@@ -137,9 +137,14 @@ def limit_remote_addr():
         None if it's in whitelist otherwise abort(403)
     """
     # IP Limitation
-    if app.config["OWASP_NETTACKER_CONFIG"]["api_client_whitelisted_ips"]:
-        if flask_request.remote_addr not in app.config["OWASP_NETTACKER_CONFIG"]["api_client_whitelisted_ips"]:
-            abort(403, messages("unauthorized_IP"))
+    if (
+        app.config["OWASP_NETTACKER_CONFIG"]["api_client_whitelisted_ips"]
+        and flask_request.remote_addr
+        not in app.config["OWASP_NETTACKER_CONFIG"][
+            "api_client_whitelisted_ips"
+        ]
+    ):
+        abort(403, messages("unauthorized_IP"))
     return
 
 
@@ -155,23 +160,22 @@ def access_log(response):
         the flask response
     """
     if app.config["OWASP_NETTACKER_CONFIG"]["api_access_log"]:
-        log_request = open(
+        with open(
             app.config["OWASP_NETTACKER_CONFIG"]["api_access_log"],
             "ab"
-        )
-        log_request.write(
-            "{0} [{1}] {2} \"{3} {4}\" {5} {6} {7}\r\n".format(
-                flask_request.remote_addr,
-                now(),
-                flask_request.host,
-                flask_request.method,
-                flask_request.full_path,
-                flask_request.user_agent,
-                response.status_code,
-                json.dumps(flask_request.form)
-            ).encode()
-        )
-        log_request.close()
+        ) as log_request:
+            log_request.write(
+                "{0} [{1}] {2} \"{3} {4}\" {5} {6} {7}\r\n".format(
+                    flask_request.remote_addr,
+                    now(),
+                    flask_request.host,
+                    flask_request.method,
+                    flask_request.full_path,
+                    flask_request.user_agent,
+                    response.status_code,
+                    json.dumps(flask_request.form)
+                ).encode()
+            )
     return response
 
 
@@ -338,14 +342,16 @@ def get_result_content():
     """
     api_key_is_valid(app, flask_request)
     scan_id = get_value(flask_request, "id")
-    if not scan_id:
-        return jsonify(
-            structure(
-                status="error",
-                msg=messages("invalid_scan_id")
-            )
-        ), 400
-    return get_scan_result(scan_id)
+    return (
+        get_scan_result(scan_id)
+        if scan_id
+        else (
+            jsonify(
+                structure(status="error", msg=messages("invalid_scan_id"))
+            ),
+            400,
+        )
+    )
 
 
 @app.route("/results/get_json", methods=["GET"])
@@ -376,14 +382,12 @@ def get_results_json():
     return Response(
         json_object,
         mimetype='application/json',
-        headers={
-            'Content-Disposition': 'attachment;filename=' + filename
-        }
+        headers={'Content-Disposition': f'attachment;filename={filename}'},
     )
 
 
 @app.route("/results/get_csv", methods=["GET"])
-def get_results_csv():  # todo: need to fix time format
+def get_results_csv():    # todo: need to fix time format
     """
     get host's logs through the API in JSON type
 
@@ -422,9 +426,7 @@ def get_results_csv():  # todo: need to fix time format
     return Response(
         reader,
         mimetype='text/csv',
-        headers={
-            'Content-Disposition': 'attachment;filename=' + filename
-        }
+        headers={'Content-Disposition': f'attachment;filename={filename}'},
     )
 
 
@@ -483,8 +485,8 @@ def get_logs():
         json_object,
         mimetype='application/json',
         headers={
-            'Content-Disposition': 'attachment;filename=' + filename + '.json'
-        }
+            'Content-Disposition': f'attachment;filename={filename}.json'
+        },
     )
 
 
@@ -523,10 +525,9 @@ def get_logs_csv():
     with open(filename, 'r') as report_path_filename:
         reader = report_path_filename.read()
     return Response(
-        reader, mimetype='text/csv',
-        headers={
-            'Content-Disposition': 'attachment;filename=' + filename + '.csv'
-        }
+        reader,
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment;filename={filename}.csv'},
     )
 
 

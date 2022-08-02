@@ -168,7 +168,6 @@ def languages_to_country():
     """
     from core.load_modules import load_all_languages
     languages = load_all_languages()
-    res = ""
     flags = {
         "el": "gr",
         "fr": "fr",
@@ -193,14 +192,13 @@ def languages_to_country():
         "iw": "il",
         "pt-br": "br"
     }
-    for language in languages:
-        res += """<option {2} id="{0}" data-content='<span class="flag-icon flag-icon-{1}" 
+    return "".join(
+        """<option {2} id="{0}" data-content='<span class="flag-icon flag-icon-{1}" 
         value="{0}"></span> {0}'></option>""".format(
-            language,
-            flags[language],
-            "selected" if language == "en" else ""
+            language, flags[language], "selected" if language == "en" else ""
         )
-    return res
+        for language in languages
+    )
 
 
 def graphs():

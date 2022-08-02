@@ -92,7 +92,7 @@ def check_dependencies():
     logo()
 
     from core.alert import messages
-    if not ('linux' in os_name() or 'darwin' in os_name()):
+    if 'linux' not in os_name() and 'darwin' not in os_name():
         die_failure(messages("error_platform"))
 
     if not os.path.exists(nettacker_paths()["home_path"]):

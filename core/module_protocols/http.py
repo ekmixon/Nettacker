@@ -92,25 +92,14 @@ def response_conditions_matched(sub_step, response):
 
 
 class Engine:
-    def run(
-            sub_step,
-            module_name,
-            target,
-            scan_unique_id,
-            options,
-            process_number,
-            module_thread_number,
-            total_module_thread_number,
-            request_number_counter,
-            total_number_of_requests
-    ):
-        backup_method = copy.deepcopy(sub_step['method'])
-        backup_response = copy.deepcopy(sub_step['response'])
+    def run(self, module_name, target, scan_unique_id, options, process_number, module_thread_number, total_module_thread_number, request_number_counter, total_number_of_requests):
+        backup_method = copy.deepcopy(self['method'])
+        backup_response = copy.deepcopy(self['response'])
         action = getattr(requests, backup_method, None)
         if options['user_agent'] == 'random_user_agent':
-            sub_step['headers']['User-Agent'] = random.choice(options['user_agents'])
-        del sub_step['method']
-        del sub_step['response']
+            self['headers']['User-Agent'] = random.choice(options['user_agents'])
+        del self['method']
+        del self['response']
         if 'dependent_on_temp_event' in backup_response:
             temp_event = get_dependent_results_from_database(
                 target,
@@ -118,13 +107,10 @@ class Engine:
                 scan_unique_id,
                 backup_response['dependent_on_temp_event']
             )
-            sub_step = replace_dependent_values(
-                sub_step,
-                temp_event
-            )
+            self = replace_dependent_values(self, temp_event)
         for _ in range(options['retries']):
             try:
-                response = action(**sub_step)
+                response = action(**self)
                 response = {
                     "reason": response.reason,
                     "status_code": str(response.status_code),
@@ -135,11 +121,14 @@ class Engine:
                 break
             except Exception:
                 response = []
-        sub_step['method'] = backup_method
-        sub_step['response'] = backup_response
-        sub_step['response']['conditions_results'] = response_conditions_matched(sub_step, response)
+        self['method'] = backup_method
+        self['response'] = backup_response
+        self['response']['conditions_results'] = response_conditions_matched(
+            self, response
+        )
+
         return process_conditions(
-            sub_step,
+            self,
             module_name,
             target,
             scan_unique_id,
@@ -149,5 +138,5 @@ class Engine:
             module_thread_number,
             total_module_thread_number,
             request_number_counter,
-            total_number_of_requests
+            total_number_of_requests,
         )

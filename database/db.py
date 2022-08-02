@@ -49,7 +49,7 @@ def create_connection():
         connection if success otherwise False
     """
     try:
-        for _ in range(0, 100):
+        for _ in range(100):
             try:
                 db_engine = create_engine(
                     db_inputs(DB),
@@ -58,8 +58,7 @@ def create_connection():
                     }
                 )
                 Session = sessionmaker(bind=db_engine)
-                session = Session()
-                return session
+                return Session()
             except Exception:
                 time.sleep(0.01)
     except Exception:
@@ -331,9 +330,7 @@ def last_host_logs(page):
             ) - 10
         ).limit(10)
     ]
-    if len(hosts) == 0:
-        return structure(status="finished", msg="No more search results")
-    return hosts
+    return hosts or structure(status="finished", msg="No more search results")
 
 
 def get_logs_by_scan_unique_id(scan_unique_id):
@@ -461,23 +458,14 @@ def search_logs(page, query):
     session = create_connection()
     selected = []
     try:
-        for host in session.query(HostsLog).filter(
-                (HostsLog.target.like("%" + str(query) + "%"))
-                | (HostsLog.date.like("%" + str(query) + "%"))
-                | (HostsLog.module_name.like("%" + str(query) + "%"))
-                | (HostsLog.port.like("%" + str(query) + "%"))
-                | (HostsLog.event.like("%" + str(query) + "%"))
-                | (HostsLog.scan_unique_id.like("%" + str(query) + "%"))
-        ).group_by(HostsLog.target).order_by(HostsLog.id.desc()).offset((page * 10) - 10).limit(10):
+        for host in session.query(HostsLog).filter((HostsLog.target.like(f"%{str(query)}%") | HostsLog.date.like(f"%{str(query)}%")) | HostsLog.module_name.like(f"%{str(query)}%") | HostsLog.port.like(f"%{str(query)}%") | HostsLog.event.like(f"%{str(query)}%") | HostsLog.scan_unique_id.like(f"%{str(query)}%")).group_by(HostsLog.target).order_by(HostsLog.id.desc()).offset((page * 10) - 10).limit(10):
             for data in session.query(HostsLog).filter(HostsLog.target == str(host.target)).group_by(
                     HostsLog.module_name, HostsLog.port, HostsLog.scan_unique_id, HostsLog.event
             ).order_by(HostsLog.id.desc()).all():
-                n = 0
                 capture = None
-                for selected_data in selected:
+                for n, selected_data in enumerate(selected):
                     if selected_data["target"] == host.target:
                         capture = n
-                    n += 1
                 if capture is None:
                     tmp = {
                         "target": data.target,
@@ -490,11 +478,9 @@ def search_logs(page, query):
                         }
                     }
                     selected.append(tmp)
-                    n = 0
-                    for selected_data in selected:
+                    for n, selected_data in enumerate(selected):
                         if selected_data["target"] == host.target:
                             capture = n
-                        n += 1
                 if data.target == selected[capture]["target"]:
                     if data.module_name not in selected[capture]["info"]["module_name"]:
                         selected[capture]["info"]["module_name"].append(data.module_name)
@@ -514,6 +500,4 @@ def search_logs(page, query):
                         )
     except Exception:
         return structure(status="error", msg="database error!")
-    if len(selected) == 0:
-        return structure(status="finished", msg="No more search results")
-    return selected
+    return selected or structure(status="finished", msg="No more search results")

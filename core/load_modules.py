@@ -22,29 +22,28 @@ def getaddrinfo(*args):
 
 
 def set_socks_proxy(socks_proxy):
-    if socks_proxy:
-        import socks
-        socks_version = socks.SOCKS5 if socks_proxy.startswith('socks5://') else socks.SOCKS4
-        socks_proxy = socks_proxy.split('://')[1] if '://' in socks_proxy else socks_proxy
-        if '@' in socks_proxy:
-            socks_username = socks_proxy.split(':')[0]
-            socks_password = socks_proxy.split(':')[1].split('@')[0]
-            socks.set_default_proxy(
-                socks_version,
-                str(socks_proxy.rsplit('@')[1].rsplit(':')[0]),  # hostname
-                int(socks_proxy.rsplit(':')[-1]),  # port
-                username=socks_username,
-                password=socks_password
-            )
-        else:
-            socks.set_default_proxy(
-                socks_version,
-                str(socks_proxy.rsplit(':')[0]),  # hostname
-                int(socks_proxy.rsplit(':')[1])  # port
-            )
-        return socks.socksocket, getaddrinfo
-    else:
+    if not socks_proxy:
         return socket.socket, socket.getaddrinfo
+    import socks
+    socks_version = socks.SOCKS5 if socks_proxy.startswith('socks5://') else socks.SOCKS4
+    socks_proxy = socks_proxy.split('://')[1] if '://' in socks_proxy else socks_proxy
+    if '@' in socks_proxy:
+        socks_username = socks_proxy.split(':')[0]
+        socks_password = socks_proxy.split(':')[1].split('@')[0]
+        socks.set_default_proxy(
+            socks_version,
+            str(socks_proxy.rsplit('@')[1].rsplit(':')[0]),  # hostname
+            int(socks_proxy.rsplit(':')[-1]),  # port
+            username=socks_username,
+            password=socks_password
+        )
+    else:
+        socks.set_default_proxy(
+            socks_version,
+            str(socks_proxy.rsplit(':')[0]),  # hostname
+            int(socks_proxy.rsplit(':')[1])  # port
+        )
+    return socks.socksocket, getaddrinfo
 
 
 class NettackerModules:
@@ -171,9 +170,15 @@ def load_all_graphs():
         an array of graph names
     """
     from config import nettacker_paths
-    graph_names = []
-    for graph_library in glob(os.path.join(nettacker_paths()['home_path'] + '/lib/graph/*/engine.py')):
-        graph_names.append(graph_library.split('/')[-2] + '_graph')
+    graph_names = [
+        graph_library.split('/')[-2] + '_graph'
+        for graph_library in glob(
+            os.path.join(
+                nettacker_paths()['home_path'] + '/lib/graph/*/engine.py'
+            )
+        )
+    ]
+
     return list(set(graph_names))
 
 
@@ -184,10 +189,16 @@ def load_all_languages():
     Returns:
         an array of languages
     """
-    languages_list = []
     from config import nettacker_paths
-    for language in glob(os.path.join(nettacker_paths()['home_path'] + '/lib/messages/*.yaml')):
-        languages_list.append(language.split('/')[-1].split('.')[0])
+    languages_list = [
+        language.split('/')[-1].split('.')[0]
+        for language in glob(
+            os.path.join(
+                nettacker_paths()['home_path'] + '/lib/messages/*.yaml'
+            )
+        )
+    ]
+
     return list(set(languages_list))
 
 
@@ -210,20 +221,27 @@ def load_all_modules(limit=-1, full_details=False):
     for module_name in glob(os.path.join(nettacker_paths()['modules_path'] + '/*/*.yaml')):
         libname = module_name.split('/')[-1].split('.')[0]
         category = module_name.split('/')[-2]
-        module_names[libname + '_' + category] = yaml.load(
-            StringIO(
-                open(
-                    nettacker_paths()['modules_path'] +
-                    '/' +
-                    category +
-                    '/' +
-                    libname +
-                    '.yaml',
-                    'r'
-                ).read().split('payload:')[0]
-            ),
-            Loader=yaml.FullLoader
-        )['info'] if full_details else None
+        module_names[f'{libname}_{category}'] = (
+            yaml.load(
+                StringIO(
+                    open(
+                        nettacker_paths()['modules_path']
+                        + '/'
+                        + category
+                        + '/'
+                        + libname
+                        + '.yaml',
+                        'r',
+                    )
+                    .read()
+                    .split('payload:')[0]
+                ),
+                Loader=yaml.FullLoader,
+            )['info']
+            if full_details
+            else None
+        )
+
         if len(module_names) == limit:
             module_names['...'] = {}
             break
@@ -250,9 +268,7 @@ def load_all_profiles(limit=-1):
         for tag in all_modules_with_details[key]['profiles']:
             if tag not in profiles:
                 profiles[tag] = []
-                profiles[tag].append(key)
-            else:
-                profiles[tag].append(key)
+            profiles[tag].append(key)
             if len(profiles) == limit:
                 profiles = sort_dictonary(profiles)
                 profiles['...'] = []

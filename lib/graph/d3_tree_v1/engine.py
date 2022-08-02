@@ -73,22 +73,16 @@ def start(events):
                 )
 
     from config import nettacker_paths
-    data = open(
-        os.path.join(
-            nettacker_paths()['web_static_files_path'],
-            'report/d3_tree_v1.html'
+    return (
+        open(
+            os.path.join(
+                nettacker_paths()['web_static_files_path'],
+                'report/d3_tree_v1.html',
+            )
         )
-    ).read().replace(
-        '__data_will_locate_here__',
-        json.dumps(d3_structure)
-    ).replace(
-        '__title_to_replace__',
-        messages("pentest_graphs")
-    ).replace(
-        '__description_to_replace__',
-        messages("graph_message")
-    ).replace(
-        '__html_title_to_replace__',
-        messages("nettacker_report")
+        .read()
+        .replace('__data_will_locate_here__', json.dumps(d3_structure))
+        .replace('__title_to_replace__', messages("pentest_graphs"))
+        .replace('__description_to_replace__', messages("graph_message"))
+        .replace('__html_title_to_replace__', messages("nettacker_report"))
     )
-    return data

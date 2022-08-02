@@ -19,15 +19,11 @@ def generate_ip_range(ip_range):
         an array with CIDRs
     """
     if '/' in ip_range:
-        return [
-            ip.format() for ip in [cidr for cidr in IPNetwork(ip_range)]
-        ]
-    else:
-        ips = []
-        for generator_ip_range in [cidr.iter_hosts() for cidr in iprange_to_cidrs(*ip_range.rsplit('-'))]:
-            for ip in generator_ip_range:
-                ips.append(ip.format())
-        return ips
+        return [ip.format() for ip in list(IPNetwork(ip_range))]
+    ips = []
+    for generator_ip_range in [cidr.iter_hosts() for cidr in iprange_to_cidrs(*ip_range.rsplit('-'))]:
+        ips.extend(ip.format() for ip in generator_ip_range)
+    return ips
 
 
 def get_ip_range(ip):
